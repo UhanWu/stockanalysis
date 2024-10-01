@@ -1,0 +1,90 @@
+---
+title: "analysis"
+author: "Yuhan"
+date: "2024-10-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(quantmod)
+```
+
+```{r warning=FALSE}
+
+# remove.packages("quantmod")
+#install.packages("quantmod")
+
+library(quantmod)
+library(TTR)
+library(ggplot2)
+library(rvest)
+library(plotly)
+
+# Define the date range
+dateold <- "2005-09-27"
+datepresent <- Sys.Date()
+
+stocktickers <- c("AAPL", "MSFT", "GOOGL", "AMZN",  "TSLA", "NVDA", "NFLX", "INTC", "AMD", "PYPL", "ADBE", 
+                  "CSCO", "PEP", "QCOM", "COST", "AVGO", "TXN", "SBUX", "AMAT", "AMGN", "HON", "INTU", "ISRG", 
+                  "BKNG", "GILD", "MU", "VRTX", "ADP", "MDLZ", "ZM", "MRNA", "ORCL", "WMT", "V", "JNJ", "JPM", 
+                  "PG", "UNH", "HD", "MA", "DIS", "KO", "PFE", "XOM", "T", "CSX", "LMT", "RTX", "GS", "IBM", 
+                  "CAT", "MRK", "MMM", "GE", "NKE", "MCD", "BA", "AXP", "CVX", "WBA", "VZ", "DOW", "BMY", "LLY", 
+                  "ABBV", "CL", "TGT", "LOW", "KMB", "C", "SPGI", "MO", "MET", "BLK", "TMO", "UNP", "ADSK", "SNPS", 
+                  "FISV", "NOW", "EW", "CRM", "IDXX", "ROP", "DHR", "MS", "SCHW", "PLD", "CCI", "NSC", "DG", "AON", 
+                  "AEP", "SO", "BDX", "ICE", "ITW", "MDT", "PGR", "EL", "CI", "USB", "TRV", "CME", "PNC", "EOG", 
+                  "DUK", "BK", "TJX", "REGN", "SYK", "LRCX", "KHC", "MAR", "DE", "SLB", "F", "PSA", "GM", 
+                  "CMCSA", "SYY", "SHW", "APD", "CB", "TFC", "NOC", "AIG", "PRU", "ALL", "STZ", "SRE", "ECL", 
+                  "MCO", "KMI", "EMR", "WEC", "AFL", "ADM", "PH", "PAYX", "CTSH", "ETN", "TEL", "MKC", "ZTS", 
+                  "HUM", "GPN", "ROK", "CARR", "FDX", "KR", "MCHP", "ANSS", "NEM", "CDNS", "MSI", "RMD", 
+                  "DLTR", "HAL", "ROST", "D", "AAP", "ZBRA", "EXC", "PPG", "FMC", "OKE", "EQR", "TTWO", 
+                  "XYL", "VFC", "BAX", "MPC", "DTE", "HPE", "CTVA", "LHX", "VTRS", "CNP", "HPQ", 
+                  "AEE", "CE",  "UAL", "TT", "IRM", "LUV", "FAST", "WYNN", "MOS", "HOLX", "FTNT", "ODFL")
+
+for (ticker in stocktickers) {
+  # Get the stock data
+  stock_data <- getSymbols(ticker, auto.assign = F, from = dateold, to = datepresent, return.class = 'xts')
+  
+  # Calculate 50-day and 200-day moving averages
+  stock_data$MA50 <- SMA(Cl(stock_data), n = 50)
+  stock_data$MA200 <- SMA(Cl(stock_data), n = 200)
+  
+  # Convert stock data to data frame for easier manipulation
+  stock_df <- data.frame(Date = index(stock_data), coredata(stock_data))
+  
+  # Find the rows where the 50-day and 200-day MAs intersected within the last 30 days
+  recent_data <- stock_df[stock_df$Date >= Sys.Date() - 30, ]  # Filter for the last 30 days
+  crossing_points <- which((recent_data$MA50 > recent_data$MA200) != (lag(recent_data$MA50) > lag(recent_data$MA200)))
+  
+  # Only plot if there was a crossing in the last 30 days
+  if (length(crossing_points) > 0) {
+    # Get the earliest crossing date within the last 30 days
+    crossing_date <- recent_data$Date[crossing_points[1]]
+    
+    # Set the x-axis range to start 90 days before the crossing date for context
+    start_date <- crossing_date - 90
+    
+    # Filter stock data to this range
+    plot_data <- stock_df[stock_df$Date >= start_date & stock_df$Date <= datepresent, ]
+    
+    # Create a candlestick plot with moving averages using plotly
+    fig <- plot_ly(x = ~plot_data$Date, type = "candlestick",
+                   open = ~plot_data[, paste0(ticker, ".Open")],
+                   high = ~plot_data[, paste0(ticker, ".High")],
+                   low = ~plot_data[, paste0(ticker, ".Low")],
+                   close = ~plot_data[, paste0(ticker, ".Close")],
+                   name = "Candlesticks") %>%
+      add_lines(x = ~plot_data$Date, y = ~plot_data$MA50, line = list(color = 'blue'), name = "50-Day MA") %>%
+      add_lines(x = ~plot_data$Date, y = ~plot_data$MA200, line = list(color = 'red'), name = "200-Day MA") %>%
+      layout(title = paste(ticker, "Price and Moving Averages"),
+             yaxis = list(title = "Price"),
+             xaxis = list(title = "Date"))
+    
+    # Print the plot for the stock
+    print(fig)
+  }
+}
+
+```
+
